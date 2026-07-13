@@ -105,3 +105,92 @@ pub async fn handle(mut socket: TcpStream) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn expect_complete(buf: &[u8]) -> (Vec<String>, usize) {
+        match parse_frame(buf) {
+            ParseResult::Complete { args, consumed } => (args, consumed),
+            other => panic!("expected Complete, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn complete_command() {
+        let buf = b"*3\r\n$3\r\nSET\r\n$4\r\nname\r\n$6\r\nomansh\r\n";
+        let (args, consumed) = expect_complete(buf);
+        assert_eq!(args, ["SET", "name", "omansh"]);
+        assert_eq!(consumed, buf.len());
+    }
+
+    #[test]
+    fn incomplete_at_every_cut() {
+        // chopping a valid command at *any* byte must give Incomplete, never Invalid
+        let buf = b"*2\r\n$3\r\nGET\r\n$4\r\nname\r\n";
+        for cut in 0..buf.len() {
+            match parse_frame(&buf[..cut]) {
+                ParseResult::Incomplete => {}
+                other => panic!("cut at {} gave {:?}", cut, other),
+            }
+        }
+    }
+
+    #[test]
+    fn glued_commands_consume_only_first() {
+        let first = b"*2\r\n$3\r\nGET\r\n$4\r\nname\r\n";
+        let mut buf = first.to_vec();
+        buf.extend_from_slice(b"*1\r\n$4\r\nPING\r\n");
+
+        let (args, consumed) = expect_complete(&buf);
+        assert_eq!(args, ["GET", "name"]);
+        assert_eq!(consumed, first.len()); // leftover bytes stay for the next parse
+
+        let (args2, _) = expect_complete(&buf[consumed..]);
+        assert_eq!(args2, ["PING"]);
+    }
+
+    #[test]
+    fn empty_buffer_is_incomplete() {
+        assert!(matches!(parse_frame(b""), ParseResult::Incomplete));
+    }
+
+    #[test]
+    fn garbage_is_invalid() {
+        assert!(matches!(
+            parse_frame(b"hello there\r\n"),
+            ParseResult::Invalid(_)
+        ));
+    }
+
+    #[test]
+    fn wrong_bulk_prefix_is_invalid() {
+        assert!(matches!(
+            parse_frame(b"*1\r\n#3\r\nGET\r\n"),
+            ParseResult::Invalid(_)
+        ));
+    }
+
+    #[test]
+    fn missing_crlf_after_data_is_invalid() {
+        assert!(matches!(
+            parse_frame(b"*1\r\n$3\r\nGETXX"),
+            ParseResult::Invalid(_)
+        ));
+    }
+
+    #[test]
+    fn huge_arg_count_is_rejected() {
+        assert!(matches!(
+            parse_frame(b"*99999999\r\n"),
+            ParseResult::Invalid(_)
+        ));
+    }
+
+    #[test]
+    fn empty_value_is_ok() {
+        let (args, _) = expect_complete(b"*2\r\n$3\r\nSET\r\n$0\r\n\r\n");
+        assert_eq!(args, ["SET", ""]);
+    }
+}
