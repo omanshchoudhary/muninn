@@ -23,3 +23,4 @@ flamegraph*.svg
 
 # Private planning notes
 distributed-cache-plan.md
+learnings.txt
