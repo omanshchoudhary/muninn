@@ -1,3 +1,5 @@
+use crate::store::Store;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -75,7 +77,7 @@ fn parse_frame(buf: &[u8]) -> ParseResult {
     }
 }
 
-pub async fn handle(mut socket: TcpStream) {
+pub async fn handle(mut socket: TcpStream, store: Arc<Store>) {
     let mut buf: Vec<u8> = Vec::new();
     let mut chunk = [0u8; 1024];
 
