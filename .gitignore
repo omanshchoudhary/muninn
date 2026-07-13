@@ -1,0 +1,22 @@
+# Rust build artifacts
+/target/
+
+# Cargo lock is committed for binaries — keep it tracked.
+# (Only ignore it if this ever becomes a library crate.)
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+
+# OS junk
+.DS_Store
+
+# Benchmark / profiling output
+perf.data*
+flamegraph*.svg
+
+
+# Added by cargo
+
+/target
