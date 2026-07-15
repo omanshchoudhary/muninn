@@ -12,7 +12,7 @@ enum ParseResult {
 
 enum Command {
     Get(String),
-    Set(String, String),
+    Set(String, String, Option<u64>),
     Delete(String),
 }
 
@@ -97,10 +97,20 @@ fn parse_commands(args: Vec<String>) -> Result<Command, &'static str> {
             return Ok(Command::Get(args[1].clone()));
         }
         "SET" => {
-            if args.len() != 3 {
+            if args.len() != 3 && args.len() != 5 {
                 return Err("wrong number of arguments for 'SET'");
             }
-            return Ok(Command::Set(args[1].clone(), args[2].clone()));
+            if args.len() == 5 {
+                if args[3].to_uppercase() != "EX" {
+                    return Err("syntax error");
+                }
+                let secs = match args[4].parse::<u64>() {
+                    Ok(n) => n,
+                    Err(_) => return Err("value is not an integer or out of range"),
+                };
+                return Ok(Command::Set(args[1].clone(), args[2].clone(), Some(secs)));
+            }
+            return Ok(Command::Set(args[1].clone(), args[2].clone(), None));
         }
         "DELETE" => {
             if args.len() != 2 {
@@ -128,8 +138,8 @@ pub async fn handle(mut socket: TcpStream, store: Arc<Store>) {
                             Some(value) => format!("${}\r\n{}\r\n", value.len(), value),
                             None => "$-1\r\n".to_string(),
                         },
-                        Ok(Command::Set(key, value)) => {
-                            store.set(key, value);
+                        Ok(Command::Set(key, value, ttl)) => {
+                            store.set(key, value, ttl);
                             "+OK\r\n".to_string()
                         }
                         Ok(Command::Delete(key)) => {
