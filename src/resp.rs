@@ -10,6 +10,12 @@ enum ParseResult {
     Invalid(&'static str),
 }
 
+enum Command {
+    Get(String),
+    Set(String, String),
+    Delete(String),
+}
+
 fn read_line(buf: &[u8], pos: usize) -> Option<(&[u8], usize)> {
     let slice = &buf[pos..];
     let idx = slice.windows(2).position(|w| w == b"\r\n")?;
@@ -77,6 +83,37 @@ fn parse_frame(buf: &[u8]) -> ParseResult {
     }
 }
 
+// Convert args to structured commands
+fn parse_commands(args: Vec<String>) -> Result<Command, &'static str> {
+    if args.is_empty() {
+        return Err("empty command");
+    }
+
+    match args[0].to_uppercase().as_str() {
+        "GET" => {
+            if args.len() != 2 {
+                return Err("wrong number of arguments for 'GET'");
+            }
+            return Ok(Command::Get(args[1].clone()));
+        }
+        "SET" => {
+            if args.len() != 3 {
+                return Err("wrong number of arguments for 'SET'");
+            }
+            return Ok(Command::Set(args[1].clone(), args[2].clone()));
+        }
+        "DELETE" => {
+            if args.len() != 2 {
+                return Err("wrong number of arguments for 'DELETE'");
+            }
+            return Ok(Command::Delete(args[1].clone()));
+        }
+        _ => {
+            return Err("unknown command");
+        }
+    }
+}
+
 pub async fn handle(mut socket: TcpStream, store: Arc<Store>) {
     let mut buf: Vec<u8> = Vec::new();
     let mut chunk = [0u8; 1024];
@@ -86,7 +123,24 @@ pub async fn handle(mut socket: TcpStream, store: Arc<Store>) {
             match parse_frame(&buf) {
                 ParseResult::Complete { args, consumed } => {
                     buf.drain(..consumed);
-                    let reply = format!("+got command: {:?}\r\n", args);
+                    let reply = match parse_commands(args) {
+                        Ok(Command::Get(key)) => match store.get(key) {
+                            Some(value) => format!("${}\r\n{}\r\n", value.len(), value),
+                            None => "$-1\r\n".to_string(),
+                        },
+                        Ok(Command::Set(key, value)) => {
+                            store.set(key, value);
+                            "+OK\r\n".to_string()
+                        }
+                        Ok(Command::Delete(key)) => {
+                            if store.delete(key) {
+                                ":1\r\n".to_string()
+                            } else {
+                                ":0\r\n".to_string()
+                            }
+                        }
+                        Err(msg) => format!("-ERR {}\r\n", msg),
+                    };
                     if socket.write_all(reply.as_bytes()).await.is_err() {
                         return;
                     }
