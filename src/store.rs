@@ -4,15 +4,18 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::lru::Lru;
+
 pub struct Store {
     inner: Mutex<Inner>,
-    max_memory: usize,
+    max_memory: usize,  
 }
 
 // Need both map and memory_used to be consistent that's why locked in the same room
 struct Inner {
     map: HashMap<String, Entry>,
     memory_used: usize,
+    lru: Lru
 }
 
 struct Entry {
@@ -35,6 +38,7 @@ impl Store {
             inner: Mutex::new(Inner {
                 map: HashMap::new(),
                 memory_used: 0,
+                lru: Lru::new()
             }),
             max_memory,
         }
@@ -54,23 +58,42 @@ impl Store {
         if expired {
             if let Some(old) = inner.map.remove(&key) {
                 inner.memory_used -= key.len() + old.value.len();
+                inner.lru.remove(&key)
             }
             return None; // expired = never existed
         }
+        inner.lru.touch(&key);
         Some(inner.map.get(&key).unwrap().value.clone())
     }
 
-    pub fn set(&self, key: String, value: String, ttl: Option<u64>) {
+    pub fn set(&self, key: String, value: String, ttl: Option<u64>) ->  Result<(), &'static str>{
         let key_len = key.len(); // grab lengths BEFORE key moves
         let new_size = key_len + value.len();
 
         let mut inner = self.inner.lock().unwrap(); // lock first and then everything 
 
-        // returns the old value if one existed
-        if let Some(old) = inner.map.insert(key, Entry::new(value, ttl)) {
-            inner.memory_used -= key_len + old.value.len();
+        while self.max_memory > 0 && inner.memory_used + new_size > self.max_memory {
+            match inner.lru.evict() {
+                Some(victim) => {
+                    if let Some(old) = inner.map.remove(&victim) {
+                        inner.memory_used -= victim.len() + old.value.len();
+                    }
+                }
+                None => return Err("OOM: entry larger than max-memory"),  // nothing left to evict, still won't fit
+            }
+        }
+
+        // insert into the map; the return tells us new-key vs overwrite
+        match inner.map.insert(key.clone(), Entry::new(value, ttl)) {
+            Some(old) => {
+                // overwrite: key already lives in the lru, just promote it
+                inner.memory_used -= key_len + old.value.len();
+                inner.lru.touch(&key);
+            }
+            None => inner.lru.insert(key), // brand-new key, hand ownership over
         }
         inner.memory_used += new_size;
+        Ok(())
     }
 
     pub fn delete(&self, key: String) -> bool {
@@ -78,6 +101,7 @@ impl Store {
         match inner.map.remove(&key) {
             Some(old) => {
                 inner.memory_used -= key.len() + old.value.len();
+                inner.lru.remove(&key);
                 true
             }
             None => false,

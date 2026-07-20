@@ -26,7 +26,7 @@ pub struct Lru {
 }
 
 impl Lru {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             arena: Vec::new(),
             head: None,

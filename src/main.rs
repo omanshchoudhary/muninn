@@ -1,3 +1,4 @@
+mod lru;
 mod resp;
 mod store;
 
@@ -9,7 +10,6 @@ use tokio::net::TcpListener;
 use crate::store::Store;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    
     // Read CLI args: muninn [--max-memory <bytes>]
     // no flag (or 0) = unlimited, same convention as redis `maxmemory 0`
     let args: Vec<String> = env::args().collect();

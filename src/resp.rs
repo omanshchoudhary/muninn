@@ -138,10 +138,10 @@ pub async fn handle(mut socket: TcpStream, store: Arc<Store>) {
                             Some(value) => format!("${}\r\n{}\r\n", value.len(), value),
                             None => "$-1\r\n".to_string(),
                         },
-                        Ok(Command::Set(key, value, ttl)) => {
-                            store.set(key, value, ttl);
-                            "+OK\r\n".to_string()
-                        }
+                        Ok(Command::Set(key, value, ttl)) => match store.set(key, value, ttl) {
+                            Ok(()) => "+OK\r\n".to_string(),
+                            Err(msg) => format!("-ERR {}\r\n", msg),
+                        },
                         Ok(Command::Delete(key)) => {
                             if store.delete(key) {
                                 ":1\r\n".to_string()
