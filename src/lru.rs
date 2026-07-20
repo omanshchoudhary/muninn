@@ -68,6 +68,15 @@ impl Lru {
         Some(key)
     }
 
+    // Remove a specific key 
+    pub fn remove(&mut self, key: &str) {
+        if let Some(&index) = self.mapping.get(key) {
+            self.unlink(index);
+            self.mapping.remove(key); // key leaves the list → leaves every structure
+            self.free_slot(index);
+        }
+    }
+
     // Returns the new index
     fn alloc_slot(&mut self) -> usize {
         let index = if let Some(i) = self.slots.pop() {
@@ -86,7 +95,7 @@ impl Lru {
 
     // Make the new node as head of list
     fn insert_head(&mut self, index: usize) {
-        
+
         // this lone node is both head and tail, no neighbours to wire
         if self.head.is_none() {
             self.arena[index].prev = None;
@@ -161,6 +170,26 @@ mod tests {
         lru.insert("c".into());
         lru.touch("a"); // a is now freshest, so b is the oldest
         assert_eq!(lru.evict(), Some("b".into()));
+    }
+
+    #[test]
+    fn remove_targets_a_specific_key() {
+        let mut lru = Lru::new();
+        lru.insert("a".into());
+        lru.insert("b".into());
+        lru.insert("c".into());
+        lru.remove("b"); // pull one from the middle
+        assert_eq!(lru.evict(), Some("a".into()));
+        assert_eq!(lru.evict(), Some("c".into())); // b is gone, skipped
+        assert_eq!(lru.evict(), None);
+    }
+
+    #[test]
+    fn remove_missing_key_is_noop() {
+        let mut lru = Lru::new();
+        lru.insert("a".into());
+        lru.remove("ghost"); // not there → must not panic or corrupt
+        assert_eq!(lru.evict(), Some("a".into()));
     }
 
     #[test]
