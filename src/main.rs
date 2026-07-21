@@ -1,5 +1,6 @@
 mod lru;
 mod resp;
+mod ring;
 mod store;
 
 use resp::handle;
