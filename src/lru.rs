@@ -68,7 +68,7 @@ impl Lru {
         Some(key)
     }
 
-    // Remove a specific key 
+    // Remove a specific key
     pub fn remove(&mut self, key: &str) {
         if let Some(&index) = self.mapping.get(key) {
             self.unlink(index);
@@ -84,7 +84,6 @@ impl Lru {
         } else {
             self.arena.push(Node::default());
             self.arena.len() - 1
-        
         };
         index
     }
@@ -95,7 +94,6 @@ impl Lru {
 
     // Make the new node as head of list
     fn insert_head(&mut self, index: usize) {
-
         // this lone node is both head and tail, no neighbours to wire
         if self.head.is_none() {
             self.arena[index].prev = None;

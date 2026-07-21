@@ -8,14 +8,14 @@ use crate::lru::Lru;
 
 pub struct Store {
     inner: Mutex<Inner>,
-    max_memory: usize,  
+    max_memory: usize,
 }
 
 // Need both map and memory_used to be consistent that's why locked in the same room
 struct Inner {
     map: HashMap<String, Entry>,
     memory_used: usize,
-    lru: Lru
+    lru: Lru,
 }
 
 struct Entry {
@@ -38,7 +38,7 @@ impl Store {
             inner: Mutex::new(Inner {
                 map: HashMap::new(),
                 memory_used: 0,
-                lru: Lru::new()
+                lru: Lru::new(),
             }),
             max_memory,
         }
@@ -66,7 +66,7 @@ impl Store {
         Some(inner.map.get(&key).unwrap().value.clone())
     }
 
-    pub fn set(&self, key: String, value: String, ttl: Option<u64>) ->  Result<(), &'static str>{
+    pub fn set(&self, key: String, value: String, ttl: Option<u64>) -> Result<(), &'static str> {
         let key_len = key.len(); // grab lengths BEFORE key moves
         let new_size = key_len + value.len();
 
@@ -79,7 +79,7 @@ impl Store {
                         inner.memory_used -= victim.len() + old.value.len();
                     }
                 }
-                None => return Err("OOM: entry larger than max-memory"),  // nothing left to evict, still won't fit
+                None => return Err("OOM: entry larger than max-memory"), // nothing left to evict, still won't fit
             }
         }
 
