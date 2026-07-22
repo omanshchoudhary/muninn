@@ -88,6 +88,20 @@ impl Router {
     pub fn node_for(&self, key: &str) -> Option<&str> {
         self.ring.get_node(key)
     }
+
+    // connect first, so a failed dial never leaves the ring pointing at a dead node
+    pub fn add_node(&mut self, node: &str) -> io::Result<()> {
+        let conn = Connection::connect(node)?;
+        self.ring.add_node(node);
+        self.connections.insert(node.to_string(), conn);
+        Ok(())
+    }
+
+    // off the ring and drop the socket, its keys are simply gone
+    pub fn remove_node(&mut self, node: &str) {
+        self.ring.remove_node(node);
+        self.connections.remove(node);
+    }
 }
 
 
