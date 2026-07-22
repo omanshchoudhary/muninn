@@ -1,4 +1,5 @@
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, BufReader, Write};
+use std::net::TcpStream;
 
 pub enum Reply {
     Ok,            // +OK
@@ -6,6 +7,27 @@ pub enum Reply {
     Nil,           // $-1
     Int(i64),      // :1
     Error(String), // -ERR ...
+}
+
+pub struct Connection {
+    stream: TcpStream,
+    reader: BufReader<TcpStream>,
+}
+
+impl Connection {
+    pub fn connect(addr: &str) -> io::Result<Self> {
+        let stream = TcpStream::connect(addr)?;
+        // second handle to the same socket, one to write with one to read from
+        let reader = BufReader::new(stream.try_clone()?);
+        Ok(Self { stream, reader })
+    }
+
+    pub fn request(&mut self, args: &[&str]) -> io::Result<Reply> {
+        let encoded = encode(args);
+        self.stream.write_all(&encoded)?;
+        self.stream.flush()?;
+        read_reply(&mut self.reader)
+    }
 }
 
 // encode into bytes to send as client through tcp socket
@@ -28,7 +50,6 @@ fn encode(args: &[&str]) -> Vec<u8> {
 
     out
 }
-
 
 fn bad(msg: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg)
