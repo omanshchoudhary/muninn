@@ -1,6 +1,10 @@
+use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
 
+use crate::ring::Ring;
+
+#[derive(Debug)]
 pub enum Reply {
     Ok,            // +OK
     Value(String), // $5\r\nhello
@@ -30,6 +34,31 @@ impl Connection {
     }
 }
 
+
+pub struct Router {
+    ring: Ring,
+    connections: HashMap<String, Connection>,
+}
+
+impl Router {
+    pub fn new(nodes: Vec<String>, vnodes: usize) -> io::Result<Self> {
+
+        let mut ring = Ring::new(vnodes);
+        let mut connections = HashMap::new();
+
+        for node in nodes {
+            ring.add_node(&node);
+    
+            let conn = Connection::connect(&node)?;
+            connections.insert(node, conn);
+        }
+        Ok(Self {
+            ring,
+            connections
+        })
+    }
+
+}
 // encode into bytes to send as client through tcp socket
 fn encode(args: &[&str]) -> Vec<u8> {
     // Output buffer
