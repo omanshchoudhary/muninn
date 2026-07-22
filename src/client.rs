@@ -58,7 +58,39 @@ impl Router {
         })
     }
 
+    // ring picks the node, we hand back that node's connection
+    fn route(&mut self, key: &str) -> io::Result<&mut Connection> {
+    
+        let node = self
+            .ring
+            .get_node(key)
+            .ok_or_else(|| bad("no nodes in ring"))?
+            .to_string();
+
+        self.connections
+            .get_mut(&node)
+            .ok_or_else(|| bad("no connection for node"))
+    }
+
+    pub fn get(&mut self, key: &str) -> io::Result<Reply> {
+        self.route(key)?.request(&["GET", key])
+    }
+
+    pub fn set(&mut self, key: &str, value: &str) -> io::Result<Reply> {
+        self.route(key)?.request(&["SET", key, value])
+    }
+
+    pub fn delete(&mut self, key: &str) -> io::Result<Reply> {
+        self.route(key)?.request(&["DELETE", key])
+    }
+
+    // who owns this key, no i/o
+    pub fn node_for(&self, key: &str) -> Option<&str> {
+        self.ring.get_node(key)
+    }
 }
+
+
 // encode into bytes to send as client through tcp socket
 fn encode(args: &[&str]) -> Vec<u8> {
     // Output buffer
