@@ -1,14 +1,9 @@
-mod lru;
-mod resp;
-mod ring;
-mod store;
-
-use resp::handle;
+use muninn::{resp::handle, store::Store};
 use std::env;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
-use crate::store::Store;
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     // Read CLI args: muninn [--port <PORT>] [--max-memory <bytes>]

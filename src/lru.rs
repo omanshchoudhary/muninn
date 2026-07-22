@@ -7,16 +7,6 @@ struct Node {
     prev: Option<usize>,
 }
 
-impl Node {
-    fn new(key: String) -> Self {
-        Self {
-            key,
-            next: None,
-            prev: None,
-        }
-    }
-}
-
 pub struct Lru {
     arena: Vec<Node>,
     head: Option<usize>, // represent MRU
